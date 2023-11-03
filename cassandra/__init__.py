@@ -21,10 +21,12 @@ class NullHandler(logging.Handler):
     def emit(self, record):
         pass
 
+
 logging.getLogger('cassandra').addHandler(NullHandler())
 
 __version_info__ = (3, 26, 3)
 __version__ = '.'.join(map(str, __version_info__))
+__foo__ = 'my_fork'
 
 
 class ConsistencyLevel(object):
@@ -505,6 +507,7 @@ class CDCWriteFailure(RequestExecutionException):
     """
     Hit limit on data in CDC folder, writes are rejected
     """
+
     def __init__(self, message):
         Exception.__init__(self, message)
 
@@ -734,6 +737,7 @@ class UnresolvableContactPoints(DriverException):
 class OperationType(Enum):
     Read = 0
     Write = 1
+
 
 class RateLimitReached(ConfigurationException):
     '''

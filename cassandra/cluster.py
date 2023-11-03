@@ -2781,7 +2781,7 @@ class Session(object):
         result = self.execute_async(query, parameters, trace, custom_payload, timeout,
                                     execution_profile, paging_state, host, execute_as, doprint=doprint).result(doprint=doprint)
         if doprint:
-            print(f"PYTHON DRIVER execute() result {result}")
+            log.info("PYTHON DRIVER execute() result %s", result)
         return result
 
     def execute_async(self, query, parameters=None, trace=False, custom_payload=None,
@@ -2821,8 +2821,6 @@ class Session(object):
             ...     log.exception("Operation failed:")
 
         """
-        if doprint:
-            print("ojejkku")
         custom_payload = custom_payload if custom_payload else {}
         if execute_as:
             custom_payload[_proxy_execute_key] = six.b(execute_as)
@@ -2831,7 +2829,7 @@ class Session(object):
             query, parameters, trace, custom_payload, timeout,
             execution_profile, paging_state, host)
         if doprint:
-            print(f"PYTHON DRIVER future {future}")
+            log.info(f"PYTHON DRIVER future {future}")
         future._protocol_handler = self.client_protocol_handler
         self._on_request(future)
         future.send_request(doprint=doprint)
@@ -3910,12 +3908,14 @@ class ControlConnection(object):
         except ReferenceError:
             pass  # our weak reference to the Cluster is no good
         except Exception:
-            log.debug(
+            log.info(
                 "[control connection] Error refreshing schema", exc_info=True)
             self._signal_error()
         return False
 
-    def _refresh_schema(self, connection, preloaded_results=None, schema_agreement_wait=None, force=False, **kwargs):
+    def _refresh_schema(self, connection, preloaded_results=None, schema_agreement_wait=None, force=False, doprint=False, **kwargs):
+        if doprint:
+            log.info("PYTHON DRIVER in _refresh_schema()")
         if self._cluster.is_shutdown:
             return False
 
@@ -3924,12 +3924,12 @@ class ControlConnection(object):
                                                 wait_time=schema_agreement_wait)
 
         if not self._schema_meta_enabled and not force:
-            log.debug(
+            log.info(
                 "[control connection] Skipping schema refresh because schema metadata is disabled")
             return False
 
         if not agreed:
-            log.debug("Skipping schema refresh due to lack of schema agreement")
+            log.info("Skipping schema refresh due to lack of schema agreement")
             return False
 
         self._cluster.metadata.refresh(
@@ -4521,17 +4521,21 @@ class _Scheduler(Thread):
                 exc_info=exc)
 
 
-def refresh_schema_and_set_result(control_conn, response_future, connection, **kwargs):
+def refresh_schema_and_set_result(control_conn, response_future, connection, doprint, **kwargs):
     try:
-        log.debug("Refreshing schema in response to schema change. "
-                  "%s", kwargs)
+        log.info("Refreshing schema in response to schema change. "
+                 "%s", kwargs)
         response_future.is_schema_agreed = control_conn._refresh_schema(
-            connection, **kwargs)
+            connection, doprint, **kwargs)
     except Exception:
+        if doprint:
+            log.info("PYTHON DRIVER in refresh_schema_and_set_result EXCEPTION")
         log.exception(
             "Exception refreshing schema in response to schema change:")
         response_future.session.submit(control_conn.refresh_schema, **kwargs)
     finally:
+        if doprint:
+            log.info("PYTHON DRIVER in refresh_schema_and_set_result FINALLY")
         response_future._set_final_result(None)
 
 
@@ -4667,6 +4671,8 @@ class ResponseFuture(object):
         """
         # PYTHON-853: for short timeouts, we sometimes race with our __init__
         if self._connection is None and _attempts < 3:
+            log.info(
+                "PYTHON DRIVER in _on_timeout _connection is None, _attempts %s", _attempts)
             self._timer = self.session.cluster.connection_class.create_timer(
                 0.01,
                 partial(self._on_timeout, _attempts=_attempts + 1)
@@ -4674,6 +4680,8 @@ class ResponseFuture(object):
             return
 
         if self._connection is not None:
+            log.info(
+                "PYTHON DRIVER in _on_timeout _connection is not None, _attempts %s", _attempts)
             try:
                 self._connection._requests.pop(self._req_id)
             # PYTHON-1044
@@ -4681,6 +4689,8 @@ class ResponseFuture(object):
             # We should still raise OperationTimedOut to reject the future so that the main event thread will not
             # wait for it endlessly
             except KeyError:
+                log.info(
+                    "PYTHON DRIVER in _on_timeout _connection is not None EXCEPTION, _attempts %s", _attempts)
                 key = "Connection defunct by heartbeat"
                 errors = {
                     key: "Client request timeout. See Session.execute[_async](timeout)"}
@@ -4761,14 +4771,18 @@ class ResponseFuture(object):
         # off if send_request() is called multiple times
         for host in self.query_plan:
             if doprint:
-                print(f"PYTHON DRIVER send_request() host {host}")
+                log.info("PYTHON DRIVER send_request() host %s", host)
             req_id = self._query(host, doprint=doprint)
             if doprint:
-                print(f"PYTHON DRIVER send_request() req_id {req_id}")
+                log.info(
+                    "PYTHON DRIVER send_request() host %s, req_id %s", host, req_id)
             if req_id is not None:
                 self._req_id = req_id
                 return True
             if self.timeout is not None and time.time() - self._start_time > self.timeout:
+                if doprint:
+                    log.info(
+                        "PYTHON DRIVER send_request() host%s, req_id %s CALLING _ON_TIMEOUT", host, req_id)
                 self._on_timeout()
                 return True
         if error_no_hosts:
@@ -4781,7 +4795,7 @@ class ResponseFuture(object):
             message = self.message
 
         if doprint:
-            print(f"PYTHON DRIVER _query() message {message}")
+            log.info("PYTHON DRIVER _query() message %s", message)
 
         pool = self.session._pools.get(host)
         if not pool:
@@ -4803,7 +4817,7 @@ class ResponseFuture(object):
             result_meta = self.prepared_statement.result_metadata if self.prepared_statement else []
 
             if cb is None:
-                cb = partial(self._set_result, host, connection, pool)
+                cb = partial(self._set_result, host, connection, pool, doprint)
 
             self.request_encoded_size = connection.send_msg(message, request_id, cb=cb,
                                                             encoder=self._protocol_handler.encode_message,
@@ -4907,7 +4921,9 @@ class ResponseFuture(object):
             # try to submit the original prepared statement on some other host
             self.send_request()
 
-    def _set_result(self, host, connection, pool, response):
+    def _set_result(self, host, connection, pool, doprint, response):
+        if doprint:
+            log.info("PYTHON DRIVER in _set_result response %s", response)
         try:
             self.coordinator_host = host
             if pool and not pool.is_shutdown:
@@ -4938,11 +4954,14 @@ class ResponseFuture(object):
                 elif response.kind == RESULT_KIND_SCHEMA_CHANGE:
                     # refresh the schema before responding, but do it in another
                     # thread instead of the event loop thread
+                    if doprint:
+                        log.info(
+                            "PYTHON DRIVER in _set_result RESULT_KIND_SCHEMA_CHANGE")
                     self.is_schema_agreed = False
                     self.session.submit(
                         refresh_schema_and_set_result,
                         self.session.cluster.control_connection,
-                        self, connection, **response.schema_change_event)
+                        self, connection, doprint, **response.schema_change_event)
                 elif response.kind == RESULT_KIND_ROWS:
                     self._paging_state = response.paging_state
                     self._col_names = response.column_names
@@ -5059,7 +5078,7 @@ class ResponseFuture(object):
                 self._set_final_exception(exc)
         except Exception as exc:
             # almost certainly caused by a bug, but we need to set something here
-            log.exception(
+            log.info(
                 "Unexpected exception while handling result in ResponseFuture:")
             self._set_final_exception(exc)
 
@@ -5252,14 +5271,14 @@ class ResponseFuture(object):
         """
         self._event.wait()
         if doprint:
-            print("PYTHON DRIVER result() event awaited")
+            log.info("PYTHON DRIVER result() event awaited")
         if self._final_result is not _NOT_SET:
             if doprint:
-                print(f"PYTHON DRIVER final_resut {self._final_result}")
+                log.info("PYTHON DRIVER final_resut %s", self._final_result)
             return ResultSet(self, self._final_result)
         else:
             if doprint:
-                print(f"PYTHON DRIVER final_exc {self._final_exception}")
+                log.info("PYTHON DRIVER final_exc %s", self._final_exception)
             raise self._final_exception
 
     def get_query_trace_ids(self):
