@@ -29,7 +29,7 @@ import six
 from cassandra.policies import HostDistance
 from cassandra.util import ms_timestamp_from_datetime
 from cassandra.datastax.insights.registry import insights_registry
-from cassandra.datastax.insights.serializers  import initialize_registry
+from cassandra.datastax.insights.serializers import initialize_registry
 
 log = logging.getLogger(__name__)
 
@@ -75,10 +75,10 @@ class MonitorReporter(Thread):
             self._session.execute(
                 "CALL InsightsRpc.reportInsight(%s)", (json.dumps(data),)
             )
-            log.debug('Insights RPC data: {}'.format(data))
+            log.info('Insights RPC data: {}'.format(data))
         except Exception as e:
-            log.debug('Insights RPC send failed with {}'.format(e))
-            log.debug('Insights RPC data: {}'.format(data))
+            log.info('Insights RPC send failed with {}'.format(e))
+            log.info('Insights RPC data: {}'.format(data))
 
     def _get_status_data(self):
         cc = self._session.cluster.control_connection
@@ -122,7 +122,8 @@ class MonitorReporter(Thread):
             local_ipaddr = cc._connection._socket.getsockname()[0]
         except Exception as e:
             local_ipaddr = None
-            log.debug('Unable to get local socket addr from {}: {}'.format(cc._connection, e))
+            log.info('Unable to get local socket addr from {}: {}'.format(
+                cc._connection, e))
         hostname = socket.getfqdn()
 
         host_distances_counter = Counter(
@@ -149,9 +150,10 @@ class MonitorReporter(Thread):
                     from OpenSSL import SSL
                     cert_validation = self._session.cluster.ssl_context.get_verify_mode() != SSL.VERIFY_NONE
             elif self._session.cluster.ssl_options:
-                cert_validation = self._session.cluster.ssl_options.get('cert_reqs') == ssl.CERT_REQUIRED
+                cert_validation = self._session.cluster.ssl_options.get(
+                    'cert_reqs') == ssl.CERT_REQUIRED
         except Exception as e:
-            log.debug('Unable to get the cert validation: {}'.format(e))
+            log.info('Unable to get the cert validation: {}'.format(e))
 
         uname_info = platform.uname()
 
@@ -217,6 +219,6 @@ class MonitorReporter(Thread):
         }
 
     def stop(self):
-        log.debug("Shutting down Monitor Reporter")
+        log.info("Shutting down Monitor Reporter")
         self._shutdown_event.set()
         self.join()

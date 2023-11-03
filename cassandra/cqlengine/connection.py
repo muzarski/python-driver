@@ -46,7 +46,8 @@ def format_log_context(msg, connection=None, keyspace=None):
     connection_info = connection or 'DEFAULT_CONNECTION'
 
     if keyspace:
-        msg = '[Connection: {0}, Keyspace: {1}] {2}'.format(connection_info, keyspace, msg)
+        msg = '[Connection: {0}, Keyspace: {1}] {2}'.format(
+            connection_info, keyspace, msg)
     else:
         msg = '[Connection: {0}] {1}'.format(connection_info, msg)
     return msg
@@ -93,24 +94,28 @@ class Connection(object):
         global cluster, session
 
         if 'username' in self.cluster_options or 'password' in self.cluster_options:
-            raise CQLEngineException("Username & Password are now handled by using the native driver's auth_provider")
+            raise CQLEngineException(
+                "Username & Password are now handled by using the native driver's auth_provider")
 
         if self.lazy_connect:
             return
 
         if 'cloud' in self.cluster_options:
             if self.hosts:
-                log.warning("Ignoring hosts %s because a cloud config was provided.", self.hosts)
+                log.warning(
+                    "Ignoring hosts %s because a cloud config was provided.", self.hosts)
             self.cluster = Cluster(**self.cluster_options)
         else:
             self.cluster = Cluster(self.hosts, **self.cluster_options)
 
         try:
             self.session = self.cluster.connect()
-            log.debug(format_log_context("connection initialized with internally created session", connection=self.name))
+            log.info(format_log_context(
+                "connection initialized with internally created session", connection=self.name))
         except NoHostAvailable:
             if self.retry_connect:
-                log.warning(format_log_context("connect failed, setting up for re-attempt on first use", connection=self.name))
+                log.warning(format_log_context(
+                    "connect failed, setting up for re-attempt on first use", connection=self.name))
                 self.lazy_connect = True
             raise
 
@@ -144,7 +149,8 @@ class Connection(object):
             # lazy_connect might have been set to False by another thread while waiting the lock
             # In this case, do nothing.
             if self.lazy_connect:
-                log.debug(format_log_context("Lazy connect enabled", connection=self.name))
+                log.info(format_log_context(
+                    "Lazy connect enabled", connection=self.name))
                 self.lazy_connect = False
                 self.setup()
 
@@ -179,7 +185,8 @@ def register_connection(name, hosts=None, consistency=None, lazy_connect=False,
     """
 
     if name in _connections:
-        log.warning("Registering connection '{0}' when it already exists.".format(name))
+        log.warning(
+            "Registering connection '{0}' when it already exists.".format(name))
 
     if session is not None:
         invalid_config_args = (hosts is not None or
@@ -223,16 +230,18 @@ def unregister_connection(name):
     if conn.cluster:
         conn.cluster.shutdown()
     del _connections[name]
-    log.debug("Connection '{0}' has been removed from the registry.".format(name))
+    log.info(
+        "Connection '{0}' has been removed from the registry.".format(name))
 
 
 def set_default_connection(name):
     global cluster, session
 
     if name not in _connections:
-        raise CQLEngineException("Connection '{0}' doesn't exist.".format(name))
+        raise CQLEngineException(
+            "Connection '{0}' doesn't exist.".format(name))
 
-    log.debug("Connection '{0}' has been set as default.".format(name))
+    log.info("Connection '{0}' has been set as default.".format(name))
     _connections[DEFAULT_CONNECTION] = _connections[name]
     cluster = _connections[name].cluster
     session = _connections[name].session
@@ -244,7 +253,8 @@ def get_connection(name=None):
         name = DEFAULT_CONNECTION
 
     if name not in _connections:
-        raise CQLEngineException("Connection name '{0}' doesn't exist in the registry.".format(name))
+        raise CQLEngineException(
+            "Connection name '{0}' doesn't exist in the registry.".format(name))
 
     conn = _connections[name]
     conn.handle_lazy_connect()
@@ -261,13 +271,14 @@ def default():
     try:
         conn = get_connection()
         if conn.session:
-            log.warning("configuring new default connection for cqlengine when one was already set")
+            log.warning(
+                "configuring new default connection for cqlengine when one was already set")
     except:
         pass
 
     register_connection('default', hosts=None, default=True)
 
-    log.debug("cqlengine connection initialized with default session to localhost")
+    log.info("cqlengine connection initialized with default session to localhost")
 
 
 def set_session(s):
@@ -286,13 +297,17 @@ def set_session(s):
         conn = get_connection()
     else:
         if conn.session:
-            log.warning("configuring new default session for cqlengine when one was already set")
+            log.warning(
+                "configuring new default session for cqlengine when one was already set")
 
     if not any([
-        s.cluster.profile_manager.default.row_factory is dict_factory and s.cluster._config_mode in [_ConfigMode.PROFILES, _ConfigMode.UNCOMMITTED],
-        s.row_factory is dict_factory and s.cluster._config_mode in [_ConfigMode.LEGACY, _ConfigMode.UNCOMMITTED],
+        s.cluster.profile_manager.default.row_factory is dict_factory and s.cluster._config_mode in [
+            _ConfigMode.PROFILES, _ConfigMode.UNCOMMITTED],
+        s.row_factory is dict_factory and s.cluster._config_mode in [
+            _ConfigMode.LEGACY, _ConfigMode.UNCOMMITTED],
     ]):
-        raise CQLEngineException("Failed to initialize: row_factory must be 'dict_factory'")
+        raise CQLEngineException(
+            "Failed to initialize: row_factory must be 'dict_factory'")
 
     conn.session = s
     conn.cluster = s.cluster
@@ -304,7 +319,7 @@ def set_session(s):
 
     conn.setup_session()
 
-    log.debug("cqlengine default connection initialized with %s", s)
+    log.info("cqlengine default connection initialized with %s", s)
 
 
 # TODO next major: if a cloud config is specified in kwargs, hosts will be ignored.
@@ -339,16 +354,19 @@ def execute(query, params=None, consistency_level=None, timeout=NOT_SET, connect
     conn = get_connection(connection)
 
     if not conn.session:
-        raise CQLEngineException("It is required to setup() cqlengine before executing queries")
+        raise CQLEngineException(
+            "It is required to setup() cqlengine before executing queries")
 
     if isinstance(query, SimpleStatement):
         pass  #
     elif isinstance(query, BaseCQLStatement):
         params = query.get_context()
-        query = SimpleStatement(str(query), consistency_level=consistency_level, fetch_size=query.fetch_size)
+        query = SimpleStatement(
+            str(query), consistency_level=consistency_level, fetch_size=query.fetch_size)
     elif isinstance(query, six.string_types):
         query = SimpleStatement(query, consistency_level=consistency_level)
-    log.debug(format_log_context('Query: {}, Params: {}'.format(query.query_string, params), connection=connection))
+    log.info(format_log_context('Query: {}, Params: {}'.format(
+        query.query_string, params), connection=connection))
 
     result = conn.session.execute(query, params, timeout=timeout)
 
@@ -363,7 +381,8 @@ def get_session(connection=None):
 def get_cluster(connection=None):
     conn = get_connection(connection)
     if not conn.cluster:
-        raise CQLEngineException("%s.cluster is not configured. Call one of the setup or default functions first." % __name__)
+        raise CQLEngineException(
+            "%s.cluster is not configured. Call one of the setup or default functions first." % __name__)
     return conn.cluster
 
 
@@ -387,6 +406,7 @@ def _register_known_types(cluster):
     for ks_name, name_type_map in udt_by_keyspace.items():
         for type_name, klass in name_type_map.items():
             try:
-                cluster.register_user_type(ks_name or models.DEFAULT_KEYSPACE, type_name, klass)
+                cluster.register_user_type(
+                    ks_name or models.DEFAULT_KEYSPACE, type_name, klass)
             except UserTypeDoesNotExist:
                 pass  # new types are covered in management sync functions

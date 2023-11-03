@@ -36,10 +36,10 @@ import asyncore
 from cassandra.connection import Connection, ConnectionShutdown, NONBLOCKING, Timer, TimerManager
 
 
-
 log = logging.getLogger(__name__)
 
 _dispatcher_map = {}
+
 
 def _cleanup(loop):
     if loop:
@@ -110,7 +110,8 @@ class _AsyncoreDispatcher(asyncore.dispatcher):
         assert not self._notified
 
     def loop(self, timeout):
-        asyncore.loop(timeout=timeout, use_poll=True, map=_dispatcher_map, count=1)
+        asyncore.loop(timeout=timeout, use_poll=True,
+                      map=_dispatcher_map, count=1)
 
 
 class _AsyncorePipeDispatcher(_AsyncoreDispatcher):
@@ -169,7 +170,8 @@ class _AsyncoreUDPDispatcher(_AsyncoreDispatcher):
             self._socket.sendto(b'', self.bind_address)
 
     def loop(self, timeout):
-        asyncore.loop(timeout=timeout, use_poll=False, map=_dispatcher_map, count=1)
+        asyncore.loop(timeout=timeout, use_poll=False,
+                      map=_dispatcher_map, count=1)
 
 
 class _BusyWaitDispatcher(object):
@@ -187,7 +189,8 @@ class _BusyWaitDispatcher(object):
         if not _dispatcher_map:
             time.sleep(0.005)
         count = timeout // self.max_write_latency
-        asyncore.loop(timeout=self.max_write_latency, use_poll=True, map=_dispatcher_map, count=count)
+        asyncore.loop(timeout=self.max_write_latency,
+                      use_poll=True, map=_dispatcher_map, count=count)
 
     def validate(self):
         pass
@@ -198,7 +201,8 @@ class _BusyWaitDispatcher(object):
 
 class AsyncoreLoop(object):
 
-    timer_resolution = 0.1  # used as the max interval to be in the io loop before returning to service timeouts
+    # used as the max interval to be in the io loop before returning to service timeouts
+    timer_resolution = 0.1
 
     _loop_dispatch_class = _AsyncorePipeDispatcher if os.name != 'nt' else _BusyWaitDispatcher
 
@@ -215,9 +219,11 @@ class AsyncoreLoop(object):
         try:
             dispatcher = self._loop_dispatch_class()
             dispatcher.validate()
-            log.debug("Validated loop dispatch with %s", self._loop_dispatch_class)
+            log.info("Validated loop dispatch with %s",
+                     self._loop_dispatch_class)
         except Exception:
-            log.exception("Failed validating loop dispatch with %s. Using busy wait execution instead.", self._loop_dispatch_class)
+            log.exception(
+                "Failed validating loop dispatch with %s. Using busy wait execution instead.", self._loop_dispatch_class)
             dispatcher.close()
             dispatcher = _BusyWaitDispatcher()
         self._loop_dispatcher = dispatcher
@@ -235,7 +241,8 @@ class AsyncoreLoop(object):
                 self._loop_lock.release()
 
         if should_start:
-            self._thread = Thread(target=self._run_loop, name="asyncore_cassandra_driver_event_loop")
+            self._thread = Thread(target=self._run_loop,
+                                  name="asyncore_cassandra_driver_event_loop")
             self._thread.daemon = True
             self._thread.start()
 
@@ -243,14 +250,15 @@ class AsyncoreLoop(object):
         self._loop_dispatcher.notify_loop()
 
     def _run_loop(self):
-        log.debug("Starting asyncore event loop")
+        log.info("Starting asyncore event loop")
         with self._loop_lock:
             while not self._shutdown:
                 try:
                     self._loop_dispatcher.loop(self.timer_resolution)
                     self._timers.service_timeouts()
                 except Exception as exc:
-                    self._maybe_log_debug("Asyncore event loop stopped unexpectedly", exc_info=exc)
+                    self._maybe_log_debug(
+                        "Asyncore event loop stopped unexpectedly", exc_info=exc)
                     break
             self._started = False
 
@@ -258,7 +266,7 @@ class AsyncoreLoop(object):
 
     def _maybe_log_debug(self, *args, **kwargs):
         try:
-            log.debug(*args, **kwargs)
+            log.info(*args, **kwargs)
         except Exception:
             # TODO: Remove when Python 2 support is removed
             # PYTHON-1266. If our logger has disappeared, there's nothing we
@@ -280,14 +288,14 @@ class AsyncoreLoop(object):
         if not self._thread:
             return
 
-        log.debug("Waiting for event loop thread to join...")
+        log.info("Waiting for event loop thread to join...")
         self._thread.join(timeout=1.0)
         if self._thread.is_alive():
             log.warning(
                 "Event loop thread could not be joined, so shutdown may not be clean. "
                 "Please call Cluster.shutdown() to avoid this.")
 
-        log.debug("Event loop thread was joined")
+        log.info("Event loop thread was joined")
 
         # Ensure all connections are closed and in-flight requests cancelled
         for conn in tuple(_dispatcher_map.values()):
@@ -297,7 +305,7 @@ class AsyncoreLoop(object):
         # Once all the connections are closed, close the dispatcher
         self._loop_dispatcher.close()
 
-        log.debug("Dispatchers were closed")
+        log.info("Dispatchers were closed")
 
 
 _global_loop = None
@@ -321,7 +329,8 @@ class AsyncoreConnection(Connection, asyncore.dispatcher):
         else:
             current_pid = os.getpid()
             if _global_loop._pid != current_pid:
-                log.debug("Detected fork, clearing and reinitializing reactor state")
+                log.info(
+                    "Detected fork, clearing and reinitializing reactor state")
                 cls.handle_fork()
                 _global_loop = AsyncoreLoop()
 
@@ -369,22 +378,23 @@ class AsyncoreConnection(Connection, asyncore.dispatcher):
                 return
             self.is_closed = True
 
-        log.debug("Closing connection (%s) to %s", id(self), self.endpoint)
+        log.info("Closing connection (%s) to %s", id(self), self.endpoint)
         self._writable = False
         self._readable = False
 
         # We don't have to wait for this to be closed, we can just schedule it
         self.create_timer(0, partial(asyncore.dispatcher.close, self))
 
-        log.debug("Closed socket to %s", self.endpoint)
+        log.info("Closed socket to %s", self.endpoint)
 
         if not self.is_defunct:
             self.error_all_requests(
                 ConnectionShutdown("Connection to %s was closed" % self.endpoint))
 
-            #This happens when the connection is shutdown while waiting for the ReadyMessage
+            # This happens when the connection is shutdown while waiting for the ReadyMessage
             if not self.connected_event.is_set():
-                self.last_error = ConnectionShutdown("Connection to %s was closed" % self.endpoint)
+                self.last_error = ConnectionShutdown(
+                    "Connection to %s was closed" % self.endpoint)
 
             # don't leave in-progress operations hanging
             self.connected_event.set()
@@ -393,7 +403,7 @@ class AsyncoreConnection(Connection, asyncore.dispatcher):
         self.defunct(sys.exc_info()[1])
 
     def handle_close(self):
-        log.debug("Connection %s closed by server", self)
+        log.info("Connection %s closed by server", self)
         self.close()
 
     def handle_write(self):

@@ -136,7 +136,7 @@ class AsyncioConnection(Connection):
         )
 
     async def _close(self):
-        log.debug("Closing connection (%s) to %s" % (id(self), self.endpoint))
+        log.info("Closing connection (%s) to %s" % (id(self), self.endpoint))
         if self._write_watcher:
             self._write_watcher.cancel()
         if self._read_watcher:
@@ -146,7 +146,7 @@ class AsyncioConnection(Connection):
             self._loop.remove_reader(self._socket.fileno())
             self._socket.close()
 
-        log.debug("Closed socket to %s" % (self.endpoint,))
+        log.info("Closed socket to %s" % (self.endpoint,))
 
         if not self.is_defunct:
             self.error_all_requests(
@@ -178,7 +178,6 @@ class AsyncioConnection(Connection):
             for chunk in chunks:
                 self._write_queue.put_nowait(chunk)
 
-
     async def handle_write(self):
         while True:
             try:
@@ -186,7 +185,7 @@ class AsyncioConnection(Connection):
                 if next_msg:
                     await self._loop.sock_sendall(self._socket, next_msg)
             except socket.error as err:
-                log.debug("Exception in send for %s: %s", self, err)
+                log.info("Exception in send for %s: %s", self, err)
                 self.defunct(err)
                 return
             except asyncio.CancelledError:
@@ -207,8 +206,8 @@ class AsyncioConnection(Connection):
                 await asyncio.sleep(0)
                 continue
             except socket.error as err:
-                log.debug("Exception during socket recv for %s: %s",
-                          self, err)
+                log.info("Exception during socket recv for %s: %s",
+                         self, err)
                 self.defunct(err)
                 return  # leave the read loop
             except asyncio.CancelledError:
@@ -217,6 +216,6 @@ class AsyncioConnection(Connection):
             if buf and self._iobuf.tell():
                 self.process_io_buffer()
             else:
-                log.debug("Connection %s closed by server", self)
+                log.info("Connection %s closed by server", self)
                 self.close()
                 return

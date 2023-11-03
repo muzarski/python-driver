@@ -125,8 +125,8 @@ def initialize_registry(insights_registry):
     def constant_speculative_execution_policy_insights_serializer(policy):
         return {'type': policy.__class__.__name__,
                 'namespace': namespace(policy.__class__),
-                    'options': {'delay': policy.delay,
-                                'max_attempts': policy.max_attempts}
+                'options': {'delay': policy.delay,
+                            'max_attempts': policy.max_attempts}
                 }
 
     @insights_registry.register_serializer_for(WrapperPolicy)
@@ -150,7 +150,7 @@ def initialize_registry(insights_registry):
             'serialConsistency': ConsistencyLevel.value_to_name.get(profile.serial_consistency_level, None),
             'continuousPagingOptions': (insights_registry.serialize(profile.continuous_paging_options)
                                         if (profile.continuous_paging_options is not None and
-                                           profile.continuous_paging_options is not _NOT_SET) else
+                                            profile.continuous_paging_options is not _NOT_SET) else
                                         None),
             'speculativeExecution': insights_registry.serialize(profile.speculative_execution_policy),
             'graphOptions': None
@@ -189,9 +189,9 @@ def initialize_registry(insights_registry):
         }
         overlapping_keys = set(defaults) & set(other)
         if overlapping_keys:
-            log.debug('The following key names overlap default key sentinel keys '
-                      'and these non-default EPs will not be displayed in Insights '
-                      ': {}'.format(list(overlapping_keys)))
+            log.info('The following key names overlap default key sentinel keys '
+                     'and these non-default EPs will not be displayed in Insights '
+                     ': {}'.format(list(overlapping_keys)))
 
         other.update(defaults)
         return other
@@ -211,10 +211,10 @@ def initialize_registry(insights_registry):
     @insights_registry.register_serializer_for(ContinuousPagingOptions)
     def continuous_paging_options_insights_serializer(paging_options):
         return {
-                'page_unit': paging_options.page_unit,
-                'max_pages': paging_options.max_pages,
-                'max_pages_per_second': paging_options.max_pages_per_second,
-                'max_queue_size': paging_options.max_queue_size
+            'page_unit': paging_options.page_unit,
+            'max_pages': paging_options.max_pages,
+            'max_pages_per_second': paging_options.max_pages_per_second,
+            'max_queue_size': paging_options.max_queue_size
         }
 
     insights_registry.initialized = True

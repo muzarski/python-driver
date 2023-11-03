@@ -77,7 +77,7 @@ class TwistedConnectionProtocol(protocol.Protocol):
 
     def connectionLost(self, reason):
         # reason is a Failure instance
-        log.debug("Connect lost: %s", reason)
+        log.info("Connect lost: %s", reason)
         self.connection.defunct(reason.value)
 
 
@@ -110,7 +110,7 @@ class TwistedLoop(object):
                 log.warning("Event loop thread could not be joined, so "
                             "shutdown may not be clean. Please call "
                             "Cluster.shutdown() to avoid this.")
-            log.debug("Event loop thread was joined")
+            log.info("Event loop thread was joined")
 
     def add_timer(self, timer):
         self._timers.add_timer(timer)
@@ -126,7 +126,8 @@ class TwistedLoop(object):
                     self._timeout_task.reset(delay)
                     self._timeout = next_timeout
             else:
-                self._timeout_task = reactor.callLater(delay, self._on_loop_timer)
+                self._timeout_task = reactor.callLater(
+                    delay, self._on_loop_timer)
                 self._timeout = next_timeout
 
     def _on_loop_timer(self):
@@ -151,7 +152,8 @@ class _SSLCreator(object):
             if "keyfile" in self.ssl_options:
                 self.context.use_privatekey_file(self.ssl_options["keyfile"])
             if "ca_certs" in self.ssl_options:
-                self.context.load_verify_locations(self.ssl_options["ca_certs"])
+                self.context.load_verify_locations(
+                    self.ssl_options["ca_certs"])
             if "cert_reqs" in self.ssl_options:
                 self.context.set_verify(
                     self.ssl_options["cert_reqs"],
@@ -166,13 +168,15 @@ class _SSLCreator(object):
         if where & SSL.SSL_CB_HANDSHAKE_DONE:
             if self.check_hostname and self.endpoint.address != connection.get_peer_certificate().get_subject().commonName:
                 transport = connection.get_app_data()
-                transport.failVerification(Failure(ConnectionException("Hostname verification failed", self.endpoint)))
+                transport.failVerification(Failure(ConnectionException(
+                    "Hostname verification failed", self.endpoint)))
 
     def clientConnectionForTLS(self, tlsProtocol):
         connection = SSL.Connection(self.context, None)
         connection.set_app_data(tlsProtocol)
         if self.ssl_options and "server_hostname" in self.ssl_options:
-            connection.set_tlsext_host_name(self.ssl_options['server_hostname'].encode('ascii'))
+            connection.set_tlsext_host_name(
+                self.ssl_options['server_hostname'].encode('ascii'))
         return connection
 
 
@@ -275,9 +279,9 @@ class TwistedConnection(Connection):
                 return
             self.is_closed = True
 
-        log.debug("Closing connection (%s) to %s", id(self), self.endpoint)
+        log.info("Closing connection (%s) to %s", id(self), self.endpoint)
         reactor.callFromThread(self.transport.connector.disconnect)
-        log.debug("Closed socket to %s", self.endpoint)
+        log.info("Closed socket to %s", self.endpoint)
 
         if not self.is_defunct:
             self.error_all_requests(

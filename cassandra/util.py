@@ -13,6 +13,13 @@
 # limitations under the License.
 
 from __future__ import with_statement
+import socket
+import keyword
+import time
+from six.moves import cPickle
+from cassandra.compat import Mapping
+from _weakref import ref
+from cassandra import DriverException
 import calendar
 import datetime
 from functools import total_ordering
@@ -30,8 +37,6 @@ try:
 except:
     _HAS_GEOMET = False
 
-
-from cassandra import DriverException
 
 DATETIME_EPOC = datetime.datetime(1970, 1, 1)
 UTC_DATETIME_EPOC = datetime.datetime.utcfromtimestamp(0)
@@ -169,6 +174,7 @@ def uuid_from_time(time_arg, node=None, clock_seq=None):
     return uuid.UUID(fields=(time_low, time_mid, time_hi_version,
                              clock_seq_hi_variant, clock_seq_low, node), version=1)
 
+
 LOWEST_TIME_UUID = uuid.UUID('00000000-0000-1000-8080-808080808080')
 """ The lowest possible TimeUUID, as sorted by Cassandra. """
 
@@ -184,11 +190,11 @@ def _addrinfo_or_none(contact_point, port):
     """
     try:
         value = socket.getaddrinfo(contact_point, port,
-                                  socket.AF_UNSPEC, socket.SOCK_STREAM)
+                                   socket.AF_UNSPEC, socket.SOCK_STREAM)
         return value
     except socket.gaierror:
-        log.debug('Could not resolve hostname "{}" '
-                  'with port {}'.format(contact_point, port))
+        log.info('Could not resolve hostname "{}" '
+                 'with port {}'.format(contact_point, port))
         return None
 
 
@@ -207,7 +213,8 @@ def _addrinfo_to_ip_strings(addrinfo):
 
 def _resolve_contact_points_to_string_map(contact_points):
     return OrderedDict(
-        ('{cp}:{port}'.format(cp=cp, port=port), _addrinfo_to_ip_strings(_addrinfo_or_none(cp, port)))
+        ('{cp}:{port}'.format(cp=cp, port=port),
+         _addrinfo_to_ip_strings(_addrinfo_or_none(cp, port)))
         for cp, port in contact_points
     )
 
@@ -247,7 +254,8 @@ except ImportError:
             """ A dictionary which maintains the insertion order of keys. """
 
             if len(args) > 1:
-                raise TypeError('expected at most 1 arguments, got %d' % len(args))
+                raise TypeError(
+                    'expected at most 1 arguments, got %d' % len(args))
             try:
                 self.__end
             except AttributeError:
@@ -256,7 +264,8 @@ except ImportError:
 
         def clear(self):
             self.__end = end = []
-            end += [None, end, end]         # sentinel node for doubly linked list
+            # sentinel node for doubly linked list
+            end += [None, end, end]
             self.__map = {}                 # key --> [key, prev, next]
             dict.clear(self)
 
@@ -349,8 +358,6 @@ except ImportError:
 
 
 # WeakSet from Python 2.7+ (https://code.google.com/p/weakrefset)
-
-from _weakref import ref
 
 
 class _IterationGuard(object):
@@ -770,27 +777,29 @@ class SortedSet(object):
         try:
             while lo < hi:
                 mid = (lo + hi) // 2
-                if a[mid] < x: lo = mid + 1
-                else: hi = mid
+                if a[mid] < x:
+                    lo = mid + 1
+                else:
+                    hi = mid
         except TypeError:
             # could not compare a[mid] with x
             # start scanning to find insertion point while swallowing type errors
             lo = 0
-            compared_one = False  # flag is used to determine whether uncomparables are grouped at the front or back
+            # flag is used to determine whether uncomparables are grouped at the front or back
+            compared_one = False
             while lo < hi:
                 try:
-                    if a[lo] == x or a[lo] >= x: break
+                    if a[lo] == x or a[lo] >= x:
+                        break
                     compared_one = True
                 except TypeError:
-                    if compared_one: break
+                    if compared_one:
+                        break
                 lo += 1
         return lo
 
+
 sortedset = SortedSet  # backwards-compatibility
-
-
-from cassandra.compat import Mapping
-from six.moves import cPickle
 
 
 class OrderedMap(Mapping):
@@ -860,7 +869,8 @@ class OrderedMap(Mapping):
         # not efficient -- for convenience only
         try:
             index = self._index.pop(self._serialize_key(key))
-            self._index = dict((k, i if i < index else i - 1) for k, i in self._index.items())
+            self._index = dict((k, i if i < index else i - 1)
+                               for k, i in self._index.items())
             self._items.pop(index)
         except KeyError:
             raise KeyError(str(key))
@@ -919,9 +929,6 @@ class OrderedMapSerializedKey(OrderedMap):
         return self.cass_key_type.serialize(key, self.protocol_version)
 
 
-import datetime
-import time
-
 if six.PY3:
     long = int
 
@@ -958,7 +965,8 @@ class Time(object):
         elif isinstance(value, six.string_types):
             self._from_timestring(value)
         else:
-            raise TypeError('Time arguments must be a whole number, datetime.time, or string')
+            raise TypeError(
+                'Time arguments must be a whole number, datetime.time, or string')
 
     @property
     def hour(self):
@@ -999,7 +1007,8 @@ class Time(object):
 
     def _from_timestamp(self, t):
         if t >= Time.DAY:
-            raise ValueError("value must be less than number of nanoseconds in a day (%d)" % Time.DAY)
+            raise ValueError(
+                "value must be less than number of nanoseconds in a day (%d)" % Time.DAY)
         self.nanosecond_time = t
 
     def _from_timestring(self, s):
@@ -1087,7 +1096,8 @@ class Date(object):
         elif isinstance(value, six.string_types):
             self._from_datestring(value)
         else:
-            raise TypeError('Date arguments must be a whole number, datetime.date, or string')
+            raise TypeError(
+                'Date arguments must be a whole number, datetime.date, or string')
 
     @property
     def seconds(self):
@@ -1106,7 +1116,8 @@ class Date(object):
             dt = datetime_from_timestamp(self.seconds)
             return datetime.date(dt.year, dt.month, dt.day)
         except Exception:
-            raise ValueError("%r exceeds ranges for built-in datetime.date" % self)
+            raise ValueError(
+                "%r exceeds ranges for built-in datetime.date" % self)
 
     def _from_timetuple(self, t):
         self.days_from_epoch = calendar.timegm(t) // Date.DAY
@@ -1151,7 +1162,7 @@ class Date(object):
             # If we overflow datetime.[MIN|MAX]
             return str(self.days_from_epoch)
 
-import socket
+
 if hasattr(socket, 'inet_pton'):
     inet_pton = socket.inet_pton
     inet_ntop = socket.inet_ntop
@@ -1186,7 +1197,7 @@ else:
     else:
         def not_windows(*args):
             raise OSError("IPv6 addresses cannot be handled on Windows. "
-                            "Missing ctypes.windll")
+                          "Missing ctypes.windll")
         WSAStringToAddressA = not_windows
         WSAAddressToStringA = not_windows
 
@@ -1241,9 +1252,6 @@ else:
         return ip_string[:ip_string_size.value - 1]
 
 
-import keyword
-
-
 # similar to collections.namedtuple, reproduced here because Python 2.6 did not have the rename logic
 def _positional_rename_invalid_identifiers(field_names):
     names_out = list(field_names)
@@ -1252,7 +1260,7 @@ def _positional_rename_invalid_identifiers(field_names):
             or keyword.iskeyword(name)
             or not name
             or name[0].isdigit()
-            or name.startswith('_')):
+                or name.startswith('_')):
             names_out[index] = 'field_%d_' % index
     return names_out
 
@@ -1318,7 +1326,8 @@ class Point(object):
         Parse a Point geometry from a wkt string and return a new Point object.
         """
         if not _HAS_GEOMET:
-            raise DriverException("Geomet is required to deserialize a wkt geometry.")
+            raise DriverException(
+                "Geomet is required to deserialize a wkt geometry.")
 
         try:
             geom = wkt.loads(s)
@@ -1326,7 +1335,8 @@ class Point(object):
             raise ValueError("Invalid WKT geometry: '{0}'".format(s))
 
         if geom['type'] != 'Point':
-            raise ValueError("Invalid WKT geometry type. Expected 'Point', got '{0}': '{1}'".format(geom['type'], s))
+            raise ValueError(
+                "Invalid WKT geometry type. Expected 'Point', got '{0}': '{1}'".format(geom['type'], s))
 
         coords = geom['coordinates']
         if len(coords) < 2:
@@ -1347,6 +1357,7 @@ class LineString(object):
     """
     Tuple of (x, y) coordinates in the linestring
     """
+
     def __init__(self, coords=tuple()):
         """
         'coords`: a sequence of (x, y) coordinates of points in the linestring
@@ -1376,7 +1387,8 @@ class LineString(object):
         Parse a LineString geometry from a wkt string and return a new LineString object.
         """
         if not _HAS_GEOMET:
-            raise DriverException("Geomet is required to deserialize a wkt geometry.")
+            raise DriverException(
+                "Geomet is required to deserialize a wkt geometry.")
 
         try:
             geom = wkt.loads(s)
@@ -1384,7 +1396,8 @@ class LineString(object):
             raise ValueError("Invalid WKT geometry: '{0}'".format(s))
 
         if geom['type'] != 'LineString':
-            raise ValueError("Invalid WKT geometry type. Expected 'LineString', got '{0}': '{1}'".format(geom['type'], s))
+            raise ValueError(
+                "Invalid WKT geometry type. Expected 'LineString', got '{0}': '{1}'".format(geom['type'], s))
 
         geom['coordinates'] = list_contents_to_tuple(geom['coordinates'])
 
@@ -1433,7 +1446,8 @@ class Polygon(object):
         `interiors`: None, or a sequence of sequences or (x, y) coordinates of points describing interior linear rings
         """
         self.exterior = _LinearRing(exterior)
-        self.interiors = tuple(_LinearRing(e) for e in interiors) if interiors else tuple()
+        self.interiors = tuple(_LinearRing(e)
+                               for e in interiors) if interiors else tuple()
 
     def __eq__(self, other):
         return isinstance(other, Polygon) and self.exterior == other.exterior and self.interiors == other.interiors
@@ -1447,8 +1461,10 @@ class Polygon(object):
         """
         if not self.exterior.coords:
             return "POLYGON EMPTY"
-        rings = [ring.coords for ring in chain((self.exterior,), self.interiors)]
-        rings = ["(%s)" % ', '.join("%r %r" % (x, y) for x, y in ring) for ring in rings]
+        rings = [ring.coords for ring in chain(
+            (self.exterior,), self.interiors)]
+        rings = ["(%s)" % ', '.join("%r %r" % (x, y)
+                                    for x, y in ring) for ring in rings]
         return "POLYGON (%s)" % ', '.join(rings)
 
     def __repr__(self):
@@ -1460,7 +1476,8 @@ class Polygon(object):
         Parse a Polygon geometry from a wkt string and return a new Polygon object.
         """
         if not _HAS_GEOMET:
-            raise DriverException("Geomet is required to deserialize a wkt geometry.")
+            raise DriverException(
+                "Geomet is required to deserialize a wkt geometry.")
 
         try:
             geom = wkt.loads(s)
@@ -1468,7 +1485,8 @@ class Polygon(object):
             raise ValueError("Invalid WKT geometry: '{0}'".format(s))
 
         if geom['type'] != 'Polygon':
-            raise ValueError("Invalid WKT geometry type. Expected 'Polygon', got '{0}': '{1}'".format(geom['type'], s))
+            raise ValueError(
+                "Invalid WKT geometry type. Expected 'Polygon', got '{0}': '{1}'".format(geom['type'], s))
 
         coords = geom['coordinates']
         exterior = coords[0] if len(coords) > 0 else tuple()
@@ -1477,7 +1495,8 @@ class Polygon(object):
         return Polygon(exterior=exterior, interiors=interiors)
 
 
-_distance_wkt_pattern = re.compile("distance *\\( *\\( *([\\d\\.-]+) *([\\d+\\.-]+) *\\) *([\\d+\\.-]+) *\\) *$", re.IGNORECASE)
+_distance_wkt_pattern = re.compile(
+    "distance *\\( *\\( *([\\d\\.-]+) *([\\d+\\.-]+) *\\) *([\\d+\\.-]+) *\\) *$", re.IGNORECASE)
 
 
 class Distance(object):
@@ -1629,7 +1648,8 @@ class DateRangePrecision(object):
             replace_kwargs['second'] = default_dt.second
         if precision_idx <= cls._to_int(DateRangePrecision.SECOND):
             # truncate to nearest 1000 so we deal in ms, not us
-            replace_kwargs['microsecond'] = (default_dt.microsecond // 1000) * 1000
+            replace_kwargs['microsecond'] = (
+                default_dt.microsecond // 1000) * 1000
         if precision_idx == cls._to_int(DateRangePrecision.MILLISECOND):
             replace_kwargs['microsecond'] = int(round(dt.microsecond, -3))
         return ms_timestamp_from_datetime(dt.replace(**replace_kwargs))
@@ -1684,7 +1704,8 @@ class DateRangeBound(object):
             try:
                 self.precision = precision.upper()
             except AttributeError:
-                raise TypeError('precision must be a string; got %r' % precision)
+                raise TypeError(
+                    'precision must be a string; got %r' % precision)
 
         if value is None:
             milliseconds = None
@@ -1696,7 +1717,8 @@ class DateRangeBound(object):
             )
             milliseconds = ms_timestamp_from_datetime(value)
         else:
-            raise ValueError('%r is not a valid value for DateRangeBound' % value)
+            raise ValueError(
+                '%r is not a valid value for DateRangeBound' % value)
 
         self.milliseconds = milliseconds
         self.validate()
@@ -1753,7 +1775,8 @@ class DateRangeBound(object):
 
         # if possible, use as a mapping
         try:
-            milliseconds, precision = value.get('milliseconds'), value.get('precision')
+            milliseconds, precision = value.get(
+                'milliseconds'), value.get('precision')
         except AttributeError:
             milliseconds = precision = None
         if milliseconds is not None and precision is not None:
@@ -1950,7 +1973,8 @@ class Version(object):
             version_without_prerelease = version
         parts = list(reversed(version_without_prerelease.split('.')))
         if len(parts) > 4:
-            prerelease_string = "-{}".format(self.prerelease) if self.prerelease else ""
+            prerelease_string = "-{}".format(
+                self.prerelease) if self.prerelease else ""
             log.warning("Unrecognized version: {}. Only 4 components plus prerelease are supported. "
                         "Assuming version as {}{}".format(version, '.'.join(parts[:-5:-1]), prerelease_string))
 
@@ -1959,7 +1983,8 @@ class Version(object):
         except ValueError:
             six.reraise(
                 ValueError,
-                ValueError("Couldn't parse version {}. Version should start with a number".format(version)),
+                ValueError(
+                    "Couldn't parse version {}. Version should start with a number".format(version)),
                 sys.exc_info()[2]
             )
         try:
@@ -1973,14 +1998,17 @@ class Version(object):
                 except ValueError:
                     self.build = build
         except ValueError:
-            assumed_version = "{}.{}.{}.{}-{}".format(self.major, self.minor, self.patch, self.build, self.prerelease)
-            log.warning("Unrecognized version {}. Assuming version as {}".format(version, assumed_version))
+            assumed_version = "{}.{}.{}.{}-{}".format(
+                self.major, self.minor, self.patch, self.build, self.prerelease)
+            log.warning("Unrecognized version {}. Assuming version as {}".format(
+                version, assumed_version))
 
     def __hash__(self):
         return self._version
 
     def __repr__(self):
-        version_string = "Version({0}, {1}, {2}".format(self.major, self.minor, self.patch)
+        version_string = "Version({0}, {1}, {2}".format(
+            self.major, self.minor, self.patch)
         if self.build:
             version_string += ", {}".format(self.build)
         if self.prerelease:
@@ -2009,7 +2037,8 @@ class Version(object):
                 self.minor == other.minor and
                 self.patch == other.patch and
                 self._compare_version_part(self.build, other.build, lambda s, o: s == o) and
-                self._compare_version_part(self.prerelease, other.prerelease, lambda s, o: s == o)
+                self._compare_version_part(
+                    self.prerelease, other.prerelease, lambda s, o: s == o)
                 )
 
     def __gt__(self, other):
@@ -2019,8 +2048,10 @@ class Version(object):
         is_major_ge = self.major >= other.major
         is_minor_ge = self.minor >= other.minor
         is_patch_ge = self.patch >= other.patch
-        is_build_gt = self._compare_version_part(self.build, other.build, lambda s, o: s > o)
-        is_build_ge = self._compare_version_part(self.build, other.build, lambda s, o: s >= o)
+        is_build_gt = self._compare_version_part(
+            self.build, other.build, lambda s, o: s > o)
+        is_build_ge = self._compare_version_part(
+            self.build, other.build, lambda s, o: s >= o)
 
         # By definition, a prerelease comes BEFORE the actual release, so if a version
         # doesn't have a prerelease, it's automatically greater than anything that does

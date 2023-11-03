@@ -84,14 +84,15 @@ class LibevLoop(object):
         should_start = False
         with self._lock:
             if not self._started:
-                log.debug("Starting libev event loop")
+                log.info("Starting libev event loop")
                 self._started = True
                 should_start = True
 
         if should_start:
             with self._lock_thread:
                 if not self._shutdown:
-                    self._thread = Thread(target=self._run_loop, name="event_loop")
+                    self._thread = Thread(
+                        target=self._run_loop, name="event_loop")
                     self._thread.daemon = True
                     self._thread.start()
 
@@ -103,11 +104,11 @@ class LibevLoop(object):
             # there are still active watchers, no deadlock
             with self._lock:
                 if not self._shutdown and self._live_conns:
-                    log.debug("Restarting event loop")
+                    log.info("Restarting event loop")
                     continue
                 else:
                     # all Connections have been closed, no active watchers
-                    log.debug("All Connections currently closed, event loop ended")
+                    log.info("All Connections currently closed, event loop ended")
                     self._started = False
                     break
 
@@ -133,7 +134,7 @@ class LibevLoop(object):
                 "Event loop thread could not be joined, so shutdown may not be clean. "
                 "Please call Cluster.shutdown() to avoid this.")
 
-        log.debug("Event loop thread was joined")
+        log.info("Event loop thread was joined")
 
     def add_timer(self, timer):
         self._timers.add_timer(timer)
@@ -143,7 +144,8 @@ class LibevLoop(object):
         if not self._shutdown:
             next_end = self._timers.service_timeouts()
             if next_end:
-                self._loop_timer.start(next_end - time.time())  # timer handles negative values
+                # timer handles negative values
+                self._loop_timer.start(next_end - time.time())
         else:
             self._loop_timer.stop()
 
@@ -242,7 +244,8 @@ class LibevConnection(Connection):
             _global_loop = LibevLoop()
         else:
             if _global_loop._pid != os.getpid():
-                log.debug("Detected fork, clearing and reinitializing reactor state")
+                log.info(
+                    "Detected fork, clearing and reinitializing reactor state")
                 cls.handle_fork()
                 _global_loop = LibevLoop()
 
@@ -268,8 +271,10 @@ class LibevConnection(Connection):
         self._socket.setblocking(0)
 
         with _global_loop._lock:
-            self._read_watcher = libev.IO(self._socket.fileno(), libev.EV_READ, _global_loop._loop, self.handle_read)
-            self._write_watcher = libev.IO(self._socket.fileno(), libev.EV_WRITE, _global_loop._loop, self.handle_write)
+            self._read_watcher = libev.IO(self._socket.fileno(
+            ), libev.EV_READ, _global_loop._loop, self.handle_read)
+            self._write_watcher = libev.IO(self._socket.fileno(
+            ), libev.EV_WRITE, _global_loop._loop, self.handle_write)
 
         self._send_options_message()
 
@@ -284,11 +289,11 @@ class LibevConnection(Connection):
                 return
             self.is_closed = True
 
-        log.debug("Closing connection (%s) to %s", id(self), self.endpoint)
+        log.info("Closing connection (%s) to %s", id(self), self.endpoint)
 
         _global_loop.connection_destroyed(self)
         self._socket.close()
-        log.debug("Closed socket to %s", self.endpoint)
+        log.info("Closed socket to %s", self.endpoint)
 
         # don't leave in-progress operations hanging
         if not self.is_defunct:
@@ -369,7 +374,7 @@ class LibevConnection(Connection):
         if self._iobuf.tell():
             self.process_io_buffer()
         else:
-            log.debug("Connection %s closed by server", self)
+            log.info("Connection %s closed by server", self)
             self.close()
 
     def push(self, data):

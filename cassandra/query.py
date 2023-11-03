@@ -61,7 +61,8 @@ def _clean_column_name(name):
     try:
         return _clean_name_cache[name]
     except KeyError:
-        clean = NON_ALPHA_REGEX.sub("_", START_BADCHAR_REGEX.sub("", END_BADCHAR_REGEX.sub("", name)))
+        clean = NON_ALPHA_REGEX.sub("_", START_BADCHAR_REGEX.sub(
+            "", END_BADCHAR_REGEX.sub("", name)))
         _clean_name_cache[name] = clean
         return clean
 
@@ -84,6 +85,7 @@ def tuple_factory(colnames, rows):
     """
     return rows
 
+
 class PseudoNamedTupleRow(object):
     """
     Helper class for pseudo_named_tuple_factory. These objects provide an
@@ -91,6 +93,7 @@ class PseudoNamedTupleRow(object):
     but otherwise do not attempt to implement the full namedtuple or iterable
     interface.
     """
+
     def __init__(self, ordered_dict):
         self._dict = ordered_dict
         self._tuple = tuple(ordered_dict.values())
@@ -165,7 +168,8 @@ def named_tuple_factory(colnames, rows):
         )
         return pseudo_namedtuple_factory(colnames, rows)
     except Exception:
-        clean_column_names = list(map(_clean_column_name, colnames))  # create list because py3 map object will be consumed by first attempt
+        # create list because py3 map object will be consumed by first attempt
+        clean_column_names = list(map(_clean_column_name, colnames))
         log.warning("Failed creating named tuple for results with column names %s (cleaned: %s) "
                     "(see Python 'namedtuple' documentation for details on name rules). "
                     "Results will be returned with positional names. "
@@ -273,8 +277,10 @@ class Statement(object):
     def __init__(self, retry_policy=None, consistency_level=None, routing_key=None,
                  serial_consistency_level=None, fetch_size=FETCH_SIZE_UNSET, keyspace=None, custom_payload=None,
                  is_idempotent=False):
-        if retry_policy and not hasattr(retry_policy, 'on_read_timeout'):  # just checking one method to detect positional parameter errors
-            raise ValueError('retry_policy should implement cassandra.policies.RetryPolicy')
+        # just checking one method to detect positional parameter errors
+        if retry_policy and not hasattr(retry_policy, 'on_read_timeout'):
+            raise ValueError(
+                'retry_policy should implement cassandra.policies.RetryPolicy')
         if retry_policy is not None:
             self.retry_policy = retry_policy
         if consistency_level is not None:
@@ -400,7 +406,8 @@ class SimpleStatement(Statement):
         return self._query_string
 
     def __str__(self):
-        consistency = ConsistencyLevel.value_to_name.get(self.consistency_level, 'Not Set')
+        consistency = ConsistencyLevel.value_to_name.get(
+            self.consistency_level, 'Not Set')
         return (u'<SimpleStatement query="%s", consistency=%s>' %
                 (self.query_string, consistency))
     __repr__ = __str__
@@ -431,7 +438,7 @@ class PreparedStatement(object):
        <b>A note about <code>*</code> in prepared statements</b>
     """
 
-    column_metadata = None  #TODO: make this bind_metadata in next major
+    column_metadata = None  # TODO: make this bind_metadata in next major
     retry_policy = None
     consistency_level = None
     custom_payload = None
@@ -478,7 +485,8 @@ class PreparedStatement(object):
                     partition_key_columns = table_meta.partition_key
 
                     # make a map of {column_name: index} for each column in the statement
-                    statement_indexes = dict((c.name, i) for i, c in enumerate(column_metadata))
+                    statement_indexes = dict((c.name, i)
+                                             for i, c in enumerate(column_metadata))
 
                     # a list of which indexes in the statement correspond to partition key items
                     try:
@@ -501,11 +509,13 @@ class PreparedStatement(object):
 
     def is_routing_key_index(self, i):
         if self._routing_key_index_set is None:
-            self._routing_key_index_set = set(self.routing_key_indexes) if self.routing_key_indexes else set()
+            self._routing_key_index_set = set(
+                self.routing_key_indexes) if self.routing_key_indexes else set()
         return i in self._routing_key_index_set
 
     def __str__(self):
-        consistency = ConsistencyLevel.value_to_name.get(self.consistency_level, 'Not Set')
+        consistency = ConsistencyLevel.value_to_name.get(
+            self.consistency_level, 'Not Set')
         return (u'<PreparedStatement query="%s", consistency=%s>' %
                 (self.query_string, consistency))
     __repr__ = __str__
@@ -620,10 +630,12 @@ class BoundStatement(Statement):
                 if proto_version >= 4:
                     self._append_unset_value()
                 else:
-                    raise ValueError("Attempt to bind UNSET_VALUE while using unsuitable protocol version (%d < 4)" % proto_version)
+                    raise ValueError(
+                        "Attempt to bind UNSET_VALUE while using unsuitable protocol version (%d < 4)" % proto_version)
             else:
                 try:
-                    self.values.append(col_spec.type.serialize(value, proto_version))
+                    self.values.append(
+                        col_spec.type.serialize(value, proto_version))
                 except (TypeError, struct.error) as exc:
                     actual_type = type(value)
                     message = ('Received an argument of invalid type for column "%s". '
@@ -642,7 +654,8 @@ class BoundStatement(Statement):
         next_index = len(self.values)
         if self.prepared_statement.is_routing_key_index(next_index):
             col_meta = self.prepared_statement.column_metadata[next_index]
-            raise ValueError("Cannot bind UNSET_VALUE as a part of the routing key '%s'" % col_meta.name)
+            raise ValueError(
+                "Cannot bind UNSET_VALUE as a part of the routing key '%s'" % col_meta.name)
         self.values.append(UNSET_VALUE)
 
     @property
@@ -657,12 +670,14 @@ class BoundStatement(Statement):
         if len(routing_indexes) == 1:
             self._routing_key = self.values[routing_indexes[0]]
         else:
-            self._routing_key = b"".join(self._key_parts_packed(self.values[i] for i in routing_indexes))
+            self._routing_key = b"".join(self._key_parts_packed(
+                self.values[i] for i in routing_indexes))
 
         return self._routing_key
 
     def __str__(self):
-        consistency = ConsistencyLevel.value_to_name.get(self.consistency_level, 'Not Set')
+        consistency = ConsistencyLevel.value_to_name.get(
+            self.consistency_level, 'Not Set')
         return (u'<BoundStatement query="%s", values=%s, consistency=%s>' %
                 (self.prepared_statement.query_string, self.raw_values, consistency))
     __repr__ = __str__
@@ -811,16 +826,19 @@ class BatchStatement(Statement):
             self._add_statement_and_params(False, statement, ())
         elif isinstance(statement, PreparedStatement):
             query_id = statement.query_id
-            bound_statement = statement.bind(() if parameters is None else parameters)
+            bound_statement = statement.bind(
+                () if parameters is None else parameters)
             self._update_state(bound_statement)
-            self._add_statement_and_params(True, query_id, bound_statement.values)
+            self._add_statement_and_params(
+                True, query_id, bound_statement.values)
         elif isinstance(statement, BoundStatement):
             if parameters:
                 raise ValueError(
                     "Parameters cannot be passed with a BoundStatement "
                     "to BatchStatement.add()")
             self._update_state(statement)
-            self._add_statement_and_params(True, statement.prepared_statement.query_id, statement.values)
+            self._add_statement_and_params(
+                True, statement.prepared_statement.query_id, statement.values)
         else:
             # it must be a SimpleStatement
             query_string = statement.query_string
@@ -842,8 +860,10 @@ class BatchStatement(Statement):
 
     def _add_statement_and_params(self, is_prepared, statement, parameters):
         if len(self._statements_and_parameters) >= 0xFFFF:
-            raise ValueError("Batch statement cannot contain more than %d statements." % 0xFFFF)
-        self._statements_and_parameters.append((is_prepared, statement, parameters))
+            raise ValueError(
+                "Batch statement cannot contain more than %d statements." % 0xFFFF)
+        self._statements_and_parameters.append(
+            (is_prepared, statement, parameters))
 
     def _maybe_set_routing_attributes(self, statement):
         if self.routing_key is None:
@@ -865,7 +885,8 @@ class BatchStatement(Statement):
         return len(self._statements_and_parameters)
 
     def __str__(self):
-        consistency = ConsistencyLevel.value_to_name.get(self.consistency_level, 'Not Set')
+        consistency = ConsistencyLevel.value_to_name.get(
+            self.consistency_level, 'Not Set')
         return (u'<BatchStatement type=%s, statements=%d, consistency=%s>' %
                 (self.batch_type, len(self), consistency))
     __repr__ = __str__
@@ -991,7 +1012,8 @@ class QueryTrace(object):
                 raise TraceUnavailable(
                     "Trace information was not available within %f seconds. Consider raising Session.max_trace_wait." % (max_wait,))
 
-            log.debug("Attempting to fetch trace info for trace ID: %s", self.trace_id)
+            log.info(
+                "Attempting to fetch trace info for trace ID: %s", self.trace_id)
             session_results = self._execute(
                 SimpleStatement(self._SELECT_SESSIONS_FORMAT, consistency_level=query_cl), (self.trace_id,), time_spent, max_wait)
 
@@ -1003,30 +1025,34 @@ class QueryTrace(object):
                 attempt += 1
                 continue
             if is_complete:
-                log.debug("Fetched trace info for trace ID: %s", self.trace_id)
+                log.info("Fetched trace info for trace ID: %s", self.trace_id)
             else:
-                log.debug("Fetching parital trace info for trace ID: %s", self.trace_id)
+                log.info(
+                    "Fetching parital trace info for trace ID: %s", self.trace_id)
 
             self.request_type = session_row.request
-            self.duration = timedelta(microseconds=session_row.duration) if is_complete else None
+            self.duration = timedelta(
+                microseconds=session_row.duration) if is_complete else None
             self.started_at = session_row.started_at
             self.coordinator = session_row.coordinator
             self.parameters = session_row.parameters
             # since C* 2.2
             self.client = getattr(session_row, 'client', None)
 
-            log.debug("Attempting to fetch trace events for trace ID: %s", self.trace_id)
+            log.info(
+                "Attempting to fetch trace events for trace ID: %s", self.trace_id)
             time_spent = time.time() - start
             event_results = self._execute(
                 SimpleStatement(self._SELECT_EVENTS_FORMAT, consistency_level=query_cl), (self.trace_id,), time_spent, max_wait)
-            log.debug("Fetched trace events for trace ID: %s", self.trace_id)
+            log.info("Fetched trace events for trace ID: %s", self.trace_id)
             self.events = tuple(TraceEvent(r.activity, r.event_id, r.source, r.source_elapsed, r.thread)
                                 for r in event_results)
             break
 
     def _execute(self, query, parameters, time_spent, max_wait):
         timeout = (max_wait - time_spent) if max_wait is not None else None
-        future = self._session._create_response_future(query, parameters, trace=False, custom_payload=None, timeout=timeout)
+        future = self._session._create_response_future(
+            query, parameters, trace=False, custom_payload=None, timeout=timeout)
         # in case the user switched the row factory, set it to namedtuple for this query
         future.row_factory = named_tuple_factory
         future.send_request()
@@ -1034,7 +1060,8 @@ class QueryTrace(object):
         try:
             return future.result()
         except OperationTimedOut:
-            raise TraceUnavailable("Trace information was not available within %f seconds" % (max_wait,))
+            raise TraceUnavailable(
+                "Trace information was not available within %f seconds" % (max_wait,))
 
     def __str__(self):
         return "%s [%s] coordinator: %s, started at: %s, duration: %s, parameters: %s" \
@@ -1076,7 +1103,8 @@ class TraceEvent(object):
 
     def __init__(self, description, timeuuid, source, source_elapsed, thread_name):
         self.description = description
-        self.datetime = datetime.utcfromtimestamp(unix_time_from_uuid1(timeuuid))
+        self.datetime = datetime.utcfromtimestamp(
+            unix_time_from_uuid1(timeuuid))
         self.source = source
         if source_elapsed is not None:
             self.source_elapsed = timedelta(microseconds=source_elapsed)
@@ -1094,9 +1122,10 @@ class HostTargetingStatement(object):
     Wraps any query statement and attaches a target host, making
     it usable in a targeted LBP without modifying the user's statement.
     """
+
     def __init__(self, inner_statement, target_host):
-            self.__class__ = type(inner_statement.__class__.__name__,
-                                  (self.__class__, inner_statement.__class__),
-                                  {})
-            self.__dict__ = inner_statement.__dict__
-            self.target_host = target_host
+        self.__class__ = type(inner_statement.__class__.__name__,
+                              (self.__class__, inner_statement.__class__),
+                              {})
+        self.__dict__ = inner_statement.__dict__
+        self.target_host = target_host

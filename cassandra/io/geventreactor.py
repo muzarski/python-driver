@@ -86,14 +86,14 @@ class GeventConnection(Connection):
                 return
             self.is_closed = True
 
-        log.debug("Closing connection (%s) to %s" % (id(self), self.endpoint))
+        log.info("Closing connection (%s) to %s" % (id(self), self.endpoint))
         if self._read_watcher:
             self._read_watcher.kill(block=False)
         if self._write_watcher:
             self._write_watcher.kill(block=False)
         if self._socket:
             self._socket.close()
-        log.debug("Closed socket to %s" % (self.endpoint,))
+        log.info("Closed socket to %s" % (self.endpoint,))
 
         if not self.is_defunct:
             self.error_all_requests(
@@ -102,7 +102,7 @@ class GeventConnection(Connection):
             self.connected_event.set()
 
     def handle_close(self):
-        log.debug("connection closed by server")
+        log.info("connection closed by server")
         self.close()
 
     def handle_write(self):
@@ -111,7 +111,7 @@ class GeventConnection(Connection):
                 next_msg = self._write_queue.get()
                 self._socket.sendall(next_msg)
             except socket.error as err:
-                log.debug("Exception in send for %s: %s", self, err)
+                log.info("Exception in send for %s: %s", self, err)
                 self.defunct(err)
                 return
 
@@ -121,14 +121,14 @@ class GeventConnection(Connection):
                 buf = self._socket.recv(self.in_buffer_size)
                 self._iobuf.write(buf)
             except socket.error as err:
-                log.debug("Exception in read for %s: %s", self, err)
+                log.info("Exception in read for %s: %s", self, err)
                 self.defunct(err)
                 return  # leave the read loop
 
             if buf and self._iobuf.tell():
                 self.process_io_buffer()
             else:
-                log.debug("Connection %s closed by server", self)
+                log.info("Connection %s closed by server", self)
                 self.close()
                 return
 

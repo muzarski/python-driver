@@ -41,7 +41,8 @@ def _check_pyopenssl():
     if not _PYOPENSSL:
         raise ImportError(
             "{}, pyOpenSSL must be installed to enable "
-            "SSL support with the Eventlet event loop".format(str(no_pyopenssl_error))
+            "SSL support with the Eventlet event loop".format(
+                str(no_pyopenssl_error))
         )
 
 
@@ -109,7 +110,8 @@ class EventletConnection(Connection):
         self._socket.set_connect_state()
         if self.ssl_options and 'server_hostname' in self.ssl_options:
             # This is necessary for SNI
-            self._socket.set_tlsext_host_name(self.ssl_options['server_hostname'].encode('ascii'))
+            self._socket.set_tlsext_host_name(
+                self.ssl_options['server_hostname'].encode('ascii'))
 
     def _initiate_connection(self, sockaddr):
         if self.uses_legacy_ssl_options:
@@ -134,7 +136,7 @@ class EventletConnection(Connection):
                 return
             self.is_closed = True
 
-        log.debug("Closing connection (%s) to %s" % (id(self), self.endpoint))
+        log.info("Closing connection (%s) to %s" % (id(self), self.endpoint))
 
         cur_gthread = eventlet.getcurrent()
 
@@ -144,7 +146,7 @@ class EventletConnection(Connection):
             self._write_watcher.kill()
         if self._socket:
             self._socket.close()
-        log.debug("Closed socket to %s" % (self.endpoint,))
+        log.info("Closed socket to %s" % (self.endpoint,))
 
         if not self.is_defunct:
             self.error_all_requests(
@@ -153,7 +155,7 @@ class EventletConnection(Connection):
             self.connected_event.set()
 
     def handle_close(self):
-        log.debug("connection closed by server")
+        log.info("connection closed by server")
         self.close()
 
     def handle_write(self):
@@ -162,7 +164,7 @@ class EventletConnection(Connection):
                 next_msg = self._write_queue.get()
                 self._socket.sendall(next_msg)
             except socket.error as err:
-                log.debug("Exception during socket send for %s: %s", self, err)
+                log.info("Exception during socket send for %s: %s", self, err)
                 self.defunct(err)
                 return  # Leave the write loop
             except GreenletExit:  # graceful greenthread exit
@@ -174,8 +176,8 @@ class EventletConnection(Connection):
                 buf = self._socket.recv(self.in_buffer_size)
                 self._iobuf.write(buf)
             except socket.error as err:
-                log.debug("Exception during socket recv for %s: %s",
-                          self, err)
+                log.info("Exception during socket recv for %s: %s",
+                         self, err)
                 self.defunct(err)
                 return  # leave the read loop
             except GreenletExit:  # graceful greenthread exit
@@ -184,7 +186,7 @@ class EventletConnection(Connection):
             if buf and self._iobuf.tell():
                 self.process_io_buffer()
             else:
-                log.debug("Connection %s closed by server", self)
+                log.info("Connection %s closed by server", self)
                 self.close()
                 return
 

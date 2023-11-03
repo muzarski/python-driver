@@ -185,7 +185,7 @@ def _future_completed(future):
     """ Helper for run_in_executor() """
     exc = future.exception()
     if exc:
-        log.debug("Failed to run task on executor", exc_info=exc)
+        log.info("Failed to run task on executor", exc_info=exc)
 
 
 def run_in_executor(f):
@@ -199,6 +199,9 @@ def run_in_executor(f):
         if self.is_shutdown:
             return
         try:
+            log.info("PYTHON DRIVER submitting fn %s from run_in_executor", f)
+            log.info("PYTHON DRIVER eqsize %s, threads %s from scheduler", self.executor._work_queue.qsize(
+            ), list(self.executor._threads))
             future = self.executor.submit(f, self, *args, **kwargs)
             future.add_done_callback(_future_completed)
         except Exception:
@@ -286,8 +289,8 @@ def _addrinfo_or_none(contact_point, port):
         return socket.getaddrinfo(contact_point, port,
                                   socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror:
-        log.debug('Could not resolve hostname "{}" '
-                  'with port {}'.format(contact_point, port))
+        log.info('Could not resolve hostname "{}" '
+                 'with port {}'.format(contact_point, port))
         return None
 
 
@@ -1794,8 +1797,8 @@ class Cluster(object):
                 raise DriverException("Cluster is already shut down")
 
             if not self._is_setup:
-                log.debug("Connecting to cluster, contact points: %s; protocol version: %s",
-                          self.contact_points, self.protocol_version)
+                log.info("Connecting to cluster, contact points: %s; protocol version: %s",
+                         self.contact_points, self.protocol_version)
                 self.connection_class.initialize_reactor()
                 _register_cluster_shutdown(self)
 
@@ -1810,7 +1813,7 @@ class Cluster(object):
                         if h and self.profile_manager.distance(h) == HostDistance.IGNORED:
                             h.is_up = None
 
-                    log.debug("Control connection created")
+                    log.info("Control connection created")
                 except Exception:
                     log.exception("Control connection failed to connect, "
                                   "shutting down Cluster:")
@@ -1938,7 +1941,7 @@ class Cluster(object):
                 return
 
             if not all(results):
-                log.debug(
+                log.info(
                     "Connection pool could not be created, not marking node %s up", host)
                 self._cleanup_failed_on_up_handling(host)
                 return
@@ -1963,19 +1966,19 @@ class Cluster(object):
         if self.is_shutdown:
             return
 
-        log.debug("Waiting to acquire lock for handling up status of node %s", host)
+        log.info("Waiting to acquire lock for handling up status of node %s", host)
         with host.lock:
             if host._currently_handling_node_up:
-                log.debug(
+                log.info(
                     "Another thread is already handling up status of node %s", host)
                 return
 
             if host.is_up:
-                log.debug("Host %s was already marked up", host)
+                log.info("Host %s was already marked up", host)
                 return
 
             host._currently_handling_node_up = True
-        log.debug("Starting to handle up status of node %s", host)
+        log.info("Starting to handle up status of node %s", host)
 
         have_future = False
         futures = set()
@@ -1985,25 +1988,25 @@ class Cluster(object):
 
             reconnector = host.get_and_set_reconnection_handler(None)
             if reconnector:
-                log.debug(
+                log.info(
                     "Now that host %s is up, cancelling the reconnection handler", host)
                 reconnector.cancel()
 
             if self.profile_manager.distance(host) != HostDistance.IGNORED:
                 self._prepare_all_queries(host)
-                log.debug("Done preparing all queries for host %s, ", host)
+                log.info("Done preparing all queries for host %s, ", host)
 
             for session in tuple(self.sessions):
                 session.remove_pool(host)
 
-            log.debug(
+            log.info(
                 "Signalling to load balancing policies that host %s is up", host)
             self.profile_manager.on_up(host)
 
-            log.debug("Signalling to control connection that host %s is up", host)
+            log.info("Signalling to control connection that host %s is up", host)
             self.control_connection.on_up(host)
 
-            log.debug("Attempting to open new connection pools for host %s", host)
+            log.info("Attempting to open new connection pools for host %s", host)
             futures_lock = Lock()
             futures_results = []
             callback = partial(self._on_up_future_completed,
@@ -2053,10 +2056,10 @@ class Cluster(object):
 
         old_reconnector = host.get_and_set_reconnection_handler(reconnector)
         if old_reconnector:
-            log.debug("Old host reconnector found for %s, cancelling", host)
+            log.info("Old host reconnector found for %s, cancelling", host)
             old_reconnector.cancel()
 
-        log.debug("Starting reconnector for host %s", host)
+        log.info("Starting reconnector for host %s", host)
         reconnector.start()
 
     @run_in_executor
@@ -2104,19 +2107,19 @@ class Cluster(object):
         if self.is_shutdown:
             return
 
-        log.debug("Handling new host %r and notifying listeners", host)
+        log.info("Handling new host %r and notifying listeners", host)
 
         distance = self.profile_manager.distance(host)
         if distance != HostDistance.IGNORED:
             self._prepare_all_queries(host)
-            log.debug("Done preparing queries for new host %r", host)
+            log.info("Done preparing queries for new host %r", host)
 
         self.profile_manager.on_add(host)
         self.control_connection.on_add(host, refresh_nodes)
 
         if distance == HostDistance.IGNORED:
-            log.debug("Not adding connection pool for new host %r because the "
-                      "load balancing policy has marked it as IGNORED", host)
+            log.info("Not adding connection pool for new host %r because the "
+                     "load balancing policy has marked it as IGNORED", host)
             self._finalize_add(host, set_up=False)
             return
 
@@ -2136,7 +2139,7 @@ class Cluster(object):
                 if futures:
                     return
 
-            log.debug('All futures have completed for added host %s', host)
+            log.info('All futures have completed for added host %s', host)
 
             for exc in [f for f in futures_results if isinstance(f, Exception)]:
                 log.error(
@@ -2176,7 +2179,7 @@ class Cluster(object):
         if self.is_shutdown:
             return
 
-        log.debug("[cluster] Removing host %s", host)
+        log.info("[cluster] Removing host %s", host)
         host.set_down()
         self.profile_manager.on_remove(host)
         for session in tuple(self.sessions):
@@ -2409,14 +2412,14 @@ class Cluster(object):
                 *messages, timeout=5.0, fail_on_error=False)
             for success, response in responses:
                 if not success:
-                    log.debug("Got unexpected response when preparing "
-                              "statement on host %s: %r", host, response)
+                    log.info("Got unexpected response when preparing "
+                             "statement on host %s: %r", host, response)
 
     def _prepare_all_queries(self, host):
         if not self._prepared_statements or not self.reprepare_on_up:
             return
 
-        log.debug("Preparing all known prepared statements against host %s", host)
+        log.info("Preparing all known prepared statements against host %s", host)
         connection = None
         try:
             connection = self.connection_factory(host.endpoint)
@@ -2439,7 +2442,7 @@ class Cluster(object):
                         chunks.append(ks_statements[i:i + 10])
                     self._send_chunks(connection, host, chunks)
 
-            log.debug(
+            log.info(
                 "Done preparing all known prepared statements against host %s", host)
         except OperationTimedOut as timeout:
             log.warning(
@@ -2728,12 +2731,12 @@ class Session(object):
                 )
             else:
                 if cc_host:
-                    log.debug('Not starting MonitorReporter thread for Insights; '
-                              'not supported by server version {v} on '
-                              'ControlConnection host {c}'.format(v=cc_host.release_version, c=cc_host))
+                    log.info('Not starting MonitorReporter thread for Insights; '
+                             'not supported by server version {v} on '
+                             'ControlConnection host {c}'.format(v=cc_host.release_version, c=cc_host))
 
-        log.debug('Started Session with client_id {} and session_id {}'.format(self.cluster.client_id,
-                                                                               self.session_id))
+        log.info('Started Session with client_id {} and session_id {}'.format(self.cluster.client_id,
+                                                                              self.session_id))
 
     def execute(self, query, parameters=None, timeout=_NOT_SET, trace=False,
                 custom_payload=None, execution_profile=EXEC_PROFILE_DEFAULT,
@@ -3023,8 +3026,8 @@ class Session(object):
             query_future.query_plan = query_future._load_balancer.make_query_plan(
                 self.keyspace, targeted_query)
         except Exception:
-            log.debug("Failed querying analytics master (request might not be routed optimally). "
-                      "Make sure the session is connecting to a graph analytics datacenter.", exc_info=True)
+            log.info("Failed querying analytics master (request might not be routed optimally). "
+                     "Make sure the session is connecting to a graph analytics datacenter.", exc_info=True)
 
         self.submit(query_future.send_request)
 
@@ -3297,8 +3300,8 @@ class Session(object):
 
                 if request_id is None:
                     # the error has already been logged by ResponsFuture
-                    log.debug("Failed to prepare query for host %s: %r",
-                              host, future._errors.get(host))
+                    log.info("Failed to prepare query for host %s: %r",
+                             host, future._errors.get(host))
                     continue
 
                 futures.append((host, future))
@@ -3401,7 +3404,7 @@ class Session(object):
                     self._lock.acquire()
                 self._pools[host] = new_pool
 
-            log.debug("Added pool for host %s to session", host)
+            log.info("Added pool for host %s to session", host)
             if previous:
                 previous.shutdown()
 
@@ -3412,7 +3415,7 @@ class Session(object):
     def remove_pool(self, host):
         pool = self._pools.pop(host, None)
         if pool:
-            log.debug("Removed connection pool for %r", host)
+            log.info("Removed connection pool for %r", host)
             return self.submit(pool.shutdown)
         else:
             return None
@@ -3534,6 +3537,9 @@ class Session(object):
     def submit(self, fn, *args, **kwargs):
         """ Internal """
         if not self.is_shutdown:
+            log.info("PYTHON DRIVER submitting function %s", fn)
+            log.info("PYTHON DRIVER eqsize %s, threads %s", self.cluster.executor._work_queue.qsize(
+            ), list(self.cluster.executor._threads))
             return self.cluster.executor.submit(fn, *args, **kwargs)
 
     def get_pool_state(self):
@@ -3579,7 +3585,7 @@ class _ControlReconnectionHandler(_ReconnectionHandler):
         if isinstance(exc, AuthenticationFailed):
             return False
         else:
-            log.debug("Error trying to reconnect control connection: %r", exc)
+            log.info("Error trying to reconnect control connection: %r", exc)
             return True
 
 
@@ -3694,7 +3700,7 @@ class ControlConnection(object):
             self._connection = conn
 
         if old:
-            log.debug(
+            log.info(
                 "[control connection] Closing old connection %r, replacing with %r", old, conn)
             old.close()
 
@@ -3754,7 +3760,7 @@ class ControlConnection(object):
         Creates a new Connection, registers for pushed events, and refreshes
         node/token and schema metadata.
         """
-        log.debug("[control connection] Opening new connection to %s", host)
+        log.info("[control connection] Opening new connection to %s", host)
 
         while True:
             try:
@@ -3777,9 +3783,9 @@ class ControlConnection(object):
                 else:
                     raise
 
-        log.debug("[control connection] Established new connection %r, "
-                  "registering watchers and refreshing schema and topology",
-                  connection)
+        log.info("[control connection] Established new connection %r, "
+                 "registering watchers and refreshing schema and topology",
+                 connection)
 
         # Indirect way to determine if conencted to a ScyllaDB cluster, which does not support peers_v2
         # If sharding information is available, it's a ScyllaDB cluster, so do not use peers_v2 table.
@@ -3840,7 +3846,7 @@ class ControlConnection(object):
         self._submit(self._reconnect)
 
     def _reconnect(self):
-        log.debug("[control connection] Attempting to reconnect")
+        log.info("[control connection] Attempting to reconnect")
         try:
             self._set_new_connection(self._reconnect_internal())
         except NoHostAvailable:
@@ -3862,7 +3868,7 @@ class ControlConnection(object):
                     new_handler=None)
                 self._reconnection_handler.start()
         except Exception:
-            log.debug("[control connection] error reconnecting", exc_info=True)
+            log.info("[control connection] error reconnecting", exc_info=True)
             raise
 
     def _get_and_set_reconnection_handler(self, new_handler):
@@ -3896,7 +3902,7 @@ class ControlConnection(object):
             else:
                 self._is_shutdown = True
 
-            log.debug("Shutting down control connection")
+            log.info("Shutting down control connection")
             if self._connection:
                 self._connection.close()
                 self._connection = None
@@ -3946,7 +3952,7 @@ class ControlConnection(object):
         except ReferenceError:
             pass  # our weak reference to the Cluster is no good
         except Exception:
-            log.debug(
+            log.info(
                 "[control connection] Error refreshing node list and token map", exc_info=True)
             self._signal_error()
         return False
@@ -3954,7 +3960,7 @@ class ControlConnection(object):
     def _refresh_node_list_and_token_map(self, connection, preloaded_results=None,
                                          force_token_rebuild=False):
         if preloaded_results:
-            log.debug(
+            log.info(
                 "[control connection] Refreshing node list and token map using preloaded results")
             peers_result = preloaded_results[0]
             local_result = preloaded_results[1]
@@ -3963,11 +3969,11 @@ class ControlConnection(object):
             sel_peers = self._get_peers_query(
                 self.PeersQueryType.PEERS, connection)
             if not self._token_meta_enabled:
-                log.debug(
+                log.info(
                     "[control connection] Refreshing node list without token map")
                 sel_local = self._SELECT_LOCAL_NO_TOKENS
             else:
-                log.debug(
+                log.info(
                     "[control connection] Refreshing node list and token map")
                 sel_local = self._SELECT_LOCAL
             peers_query = QueryMessage(query=sel_peers, consistency_level=cl)
@@ -4093,8 +4099,8 @@ class ControlConnection(object):
             if host is None:
                 host = self._cluster.metadata.get_host_by_host_id(host_id)
                 if host and host.endpoint != endpoint:
-                    log.debug("[control connection] Updating host ip from %s to %s for (%s)",
-                              host.endpoint, endpoint, host_id)
+                    log.info("[control connection] Updating host ip from %s to %s for (%s)",
+                             host.endpoint, endpoint, host_id)
                     old_endpoint = host.endpoint
                     host.endpoint = endpoint
                     self._cluster.metadata.update_host(host, old_endpoint)
@@ -4105,7 +4111,7 @@ class ControlConnection(object):
                         host, is_host_addition=False, expect_host_to_be_down=True)
 
             if host is None:
-                log.debug(
+                log.info(
                     "[control connection] Found new host to connect to: %s", endpoint)
                 host, _ = self._cluster.add_host(
                     endpoint, datacenter=datacenter, rack=rack, signal=True, refresh_nodes=False, host_id=host_id)
@@ -4133,13 +4139,13 @@ class ControlConnection(object):
         for old_host_id, old_host in self._cluster.metadata.all_hosts_items():
             if old_host_id not in found_host_ids:
                 should_rebuild_token_map = True
-                log.debug(
+                log.info(
                     "[control connection] Removing host not found in peers metadata: %r", old_host)
                 self._cluster.metadata.remove_host_by_host_id(old_host_id)
 
-        log.debug("[control connection] Finished fetching ring info")
+        log.info("[control connection] Finished fetching ring info")
         if partitioner and should_rebuild_token_map:
-            log.debug(
+            log.info(
                 "[control connection] Rebuilding token map due to topology changes")
             self._cluster.metadata.rebuild_token_map(partitioner, token_map)
 
@@ -4221,10 +4227,13 @@ class ControlConnection(object):
                 self._cluster.on_down(host, is_host_addition=False)
 
     def _handle_schema_change(self, event):
+        log.info("PYTHON DRIVER _handle_schema_change - event %s", event)
         if self._schema_event_refresh_window < 0:
             return
         delay = self._delay_for_event_type(
             'schema_change', self._schema_event_refresh_window)
+        log.info(
+            "PYTHON DRIVER _handle_schema_change before schedule_unique - event %s", event)
         self._cluster.scheduler.schedule_unique(
             delay, self.refresh_schema, **event)
 
@@ -4238,7 +4247,9 @@ class ControlConnection(object):
         # from the response type and one from the pushed notification. Holding
         # a lock is just a simple way to cut down on the number of schema queries
         # we'll make.
+        log.info("PYTHON DRIVER wait_for_schema_agreement - BEFORE lock")
         with self._schema_agreement_lock:
+            log.info("PYTHON DRIVER wait_for_schema_agreement - AFTER lock")
             if self._is_shutdown:
                 return
 
@@ -4246,7 +4257,7 @@ class ControlConnection(object):
                 connection = self._connection
 
             if preloaded_results:
-                log.debug(
+                log.info(
                     "[control connection] Attempting to use preloaded results for schema agreement")
 
                 peers_result = preloaded_results[0]
@@ -4256,7 +4267,7 @@ class ControlConnection(object):
                 if schema_mismatches is None:
                     return True
 
-            log.debug("[control connection] Waiting for schema agreement")
+            log.info("[control connection] Waiting for schema agreement")
             start = self._time.time()
             elapsed = 0
             cl = ConsistencyLevel.ONE
@@ -4274,13 +4285,13 @@ class ControlConnection(object):
                     peers_result, local_result = connection.wait_for_responses(
                         peers_query, local_query, timeout=timeout)
                 except OperationTimedOut as timeout:
-                    log.debug("[control connection] Timed out waiting for "
-                              "response during schema agreement check: %s", timeout)
+                    log.info("[control connection] Timed out waiting for "
+                             "response during schema agreement check: %s", timeout)
                     elapsed = self._time.time() - start
                     continue
                 except ConnectionShutdown:
                     if self._is_shutdown:
-                        log.debug(
+                        log.info(
                             "[control connection] Aborting wait for schema match due to shutdown")
                         return None
                     else:
@@ -4291,7 +4302,7 @@ class ControlConnection(object):
                 if schema_mismatches is None:
                     return True
 
-                log.debug(
+                log.info(
                     "[control connection] Schemas mismatched, trying again")
                 self._time.sleep(0.2)
                 elapsed = self._time.time() - start
@@ -4321,7 +4332,7 @@ class ControlConnection(object):
                 versions[schema_ver].add(endpoint)
 
         if len(versions) == 1:
-            log.debug("[control connection] Schemas match")
+            log.info("[control connection] Schemas match")
             return None
 
         return dict((version, list(nodes)) for version, nodes in six.iteritems(versions))
@@ -4402,8 +4413,8 @@ class ControlConnection(object):
         conn = self._connection
         if conn and conn.endpoint == host.endpoint and \
                 self._reconnection_handler is None:
-            log.debug("[control connection] Control connection host (%s) is "
-                      "considered down, starting reconnection", host)
+            log.info("[control connection] Control connection host (%s) is "
+                     "considered down, starting reconnection", host)
             # this will result in a task being submitted to the executor to reconnect
             self.reconnect()
 
@@ -4414,7 +4425,7 @@ class ControlConnection(object):
     def on_remove(self, host):
         c = self._connection
         if c and c.endpoint == host.endpoint:
-            log.debug(
+            log.info(
                 "[control connection] Control connection host (%s) is being removed. Reconnecting", host)
             # refresh will be done on reconnect
             self.reconnect()
@@ -4459,7 +4470,7 @@ class _Scheduler(Thread):
 
     def shutdown(self):
         try:
-            log.debug("Shutting down Cluster Scheduler")
+            log.info("Shutting down Cluster Scheduler")
         except AttributeError:
             # this can happen on interpreter shutdown
             pass
@@ -4475,7 +4486,7 @@ class _Scheduler(Thread):
         if task not in self._scheduled_tasks:
             self._insert_task(delay, task)
         else:
-            log.debug(
+            log.info(
                 "Ignoring schedule_unique for already-scheduled task: %r", task)
 
     def _insert_task(self, delay, task):
@@ -4484,7 +4495,7 @@ class _Scheduler(Thread):
             self._scheduled_tasks.add(task)
             self._queue.put_nowait((run_at, next(self._count), task))
         else:
-            log.debug("Ignoring scheduled task after shutdown: %r", task)
+            log.info("Ignoring scheduled task after shutdown: %r", task)
 
     def run(self):
         while True:
@@ -4496,13 +4507,17 @@ class _Scheduler(Thread):
                     run_at, i, task = self._queue.get(block=True, timeout=None)
                     if self.is_shutdown:
                         if task:
-                            log.debug(
+                            log.info(
                                 "Not executing scheduled task due to Scheduler shutdown")
                         return
                     if run_at <= time.time():
                         self._scheduled_tasks.discard(task)
                         fn, args, kwargs = task
                         kwargs = dict(kwargs)
+                        log.info(
+                            "PYTHON DRIVER submitting fn %s from scheduler", fn)
+                        log.info("PYTHON DRIVER eqsize %s, threads %s from scheduler", self._executor._work_queue.qsize(
+                        ), list(self._executor._threads))
                         future = self._executor.submit(fn, *args, **kwargs)
                         future.add_done_callback(self._log_if_failed)
                     else:
@@ -4526,7 +4541,7 @@ def refresh_schema_and_set_result(control_conn, response_future, connection, dop
         log.info("Refreshing schema in response to schema change. "
                  "%s", kwargs)
         response_future.is_schema_agreed = control_conn._refresh_schema(
-            connection, doprint, **kwargs)
+            connection, doprint=doprint, **kwargs)
     except Exception:
         if doprint:
             log.info("PYTHON DRIVER in refresh_schema_and_set_result EXCEPTION")
@@ -4826,15 +4841,15 @@ class ResponseFuture(object):
             self.attempted_hosts.append(host)
             return request_id
         except NoConnectionsAvailable as exc:
-            log.debug(
+            log.info(
                 "All connections for host %s are at capacity, moving to the next host", host)
             self._errors[host] = exc
         except ConnectionBusy as exc:
-            log.debug(
+            log.info(
                 "Connection for host %s is busy, moving to the next host", host)
             self._errors[host] = exc
         except Exception as exc:
-            log.debug("Error querying host %s", host, exc_info=True)
+            log.info("Error querying host %s", host, exc_info=True)
             self._errors[host] = exc
             if self._metrics is not None:
                 self._metrics.on_connection_error()
@@ -5036,8 +5051,8 @@ class ResponseFuture(object):
                                        (current_keyspace, prepared_keyspace)))
                         return
 
-                    log.debug("Re-preparing unrecognized prepared statement against host %s: %s",
-                              host, prepared_statement.query_string)
+                    log.info("Re-preparing unrecognized prepared statement against host %s: %s",
+                             host, prepared_statement.query_string)
                     prepared_keyspace = prepared_statement.keyspace \
                         if ProtocolVersion.uses_keyspace_flag(self.session.cluster.protocol_version) else None
                     prepare_message = PrepareMessage(query=prepared_statement.query_string,
@@ -5141,8 +5156,8 @@ class ResponseFuture(object):
             else:
                 self._set_final_exception(response)
         elif isinstance(response, ConnectionException):
-            log.debug("Connection error when preparing statement on host %s: %s",
-                      host, response)
+            log.info("Connection error when preparing statement on host %s: %s",
+                     host, response)
             # try again on a different host, preparing again if necessary
             self._errors[host] = response
             self.send_request()
