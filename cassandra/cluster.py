@@ -21,7 +21,8 @@ from __future__ import absolute_import
 import atexit
 from binascii import hexlify
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait as wait_futures
+from concurrent.futures.thread2 import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, wait as wait_futures
 from copy import copy
 from functools import partial, wraps
 from itertools import groupby, count, chain
@@ -200,7 +201,7 @@ def run_in_executor(f):
             return
         try:
             log.info("PYTHON DRIVER submitting fn %s from run_in_executor", f)
-            log.info("PYTHON DRIVER eqsize %s, threads %s from scheduler", self.executor._work_queue.qsize(
+            log.info("PYTHON DRIVER eqsize %s, threads %s run_in_executor", self.executor._work_queue.qsize(
             ), list(self.executor._threads))
             future = self.executor.submit(f, self, *args, **kwargs)
             future.add_done_callback(_future_completed)
