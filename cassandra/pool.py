@@ -714,10 +714,13 @@ class HostConnection(object):
         log.info("shard_aware_endpoint=%r", shard_aware_endpoint)
 
         if shard_aware_endpoint:
-            conn = self._session.cluster.connection_factory(shard_aware_endpoint, on_orphaned_stream_released=self.on_orphaned_stream_released,
-                                                            shard_id=shard_id,
-                                                            total_shards=self.host.sharding_info.shards_count)
-            conn.original_endpoint = self.host.endpoint
+            try:
+                conn = self._session.cluster.connection_factory(shard_aware_endpoint, on_orphaned_stream_released=self.on_orphaned_stream_released,
+                                                                shard_id=shard_id,
+                                                                total_shards=self.host.sharding_info.shards_count)
+                conn.original_endpoint = self.host.endpoint
+            except Exception:
+                log.exception("Failed to open connection to %s, on shard_id=%i:", self.host, shard_id)
         else:
             conn = self._session.cluster.connection_factory(
                 self.host.endpoint, on_orphaned_stream_released=self.on_orphaned_stream_released)
