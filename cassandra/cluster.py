@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import atexit
 from binascii import hexlify
 from collections import defaultdict
-from concurrent.futures.thread2 import ThreadPoolExecutor
+from concurrent.futures.thread import ThreadPoolExecutor
 from concurrent.futures import FIRST_COMPLETED, wait as wait_futures
 from copy import copy
 from functools import partial, wraps

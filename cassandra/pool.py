@@ -707,6 +707,7 @@ class HostConnection(object):
         the smaller the chance that further connections will be assigned
         to that shard.
         """
+        print(f"Trying to open connection to shard {shard_id}")
         with self._lock:
             if self.is_shutdown:
                 return
@@ -720,6 +721,7 @@ class HostConnection(object):
                                                                 total_shards=self.host.sharding_info.shards_count)
                 conn.original_endpoint = self.host.endpoint
             except Exception:
+                print("EXCEPTION!!!")
                 log.exception("Failed to open connection to %s, on shard_id=%i:", self.host, shard_id)
         else:
             conn = self._session.cluster.connection_factory(
@@ -842,6 +844,7 @@ class HostConnection(object):
         """
         Loop over all the shards and try to open a connection to each one.
         """
+        print("in open for all shards...")
         with self._lock:
             if self.is_shutdown:
                 return
