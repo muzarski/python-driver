@@ -25,6 +25,7 @@ logging.getLogger('cassandra').addHandler(NullHandler())
 
 __version_info__ = (3, 26, 7)
 __version__ = '.'.join(map(str, __version_info__))
+__proof__ = 'key_error_fix'
 
 
 class ConsistencyLevel(object):

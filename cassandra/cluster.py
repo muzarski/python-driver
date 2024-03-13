@@ -1758,6 +1758,7 @@ class Cluster(object):
         established or attempted. Default is `False`, which means it will return when the first
         successful connection is established. Remaining pools are added asynchronously.
         """
+        print("In connect (keyerrorfix driver)")
         with self._lock:
             if self.is_shutdown:
                 raise DriverException("Cluster is already shut down")
